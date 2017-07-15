@@ -268,7 +268,7 @@ contains
 					call interpolateIndex(x, y, x_point, xsteplength, timestep, xstep, tindex,xinterpl, yinterpl)
 					call newtoninterpl(xinterpl, yinterpl, x_point, yb)
 
-					call interpolateIndex(x, z, x_point, xsteplength, timestep, xstep, tindex,xinterpl, zinterpl)						
+					call interpolateIndex(x, z, x_point, xsteplength, timestep, xstep, tindex,xinterpl, zinterpl)
 					call newtoninterpl(xinterpl, zinterpl, x_point, zb)
 				
 					call function34(yb,f)
