@@ -7,10 +7,10 @@ program example31
 	real(kind=8)::ordery, orderz, theta
 	integer::i ,xrange
 	print*,"theta = "
-	read*,theta 
+	read*,theta
 	print*,"xrange = "
-	read*,xrange 
-	timestep = (/4, 8, 16, 20/)
+	read*,xrange
+	timestep = [8, 16, 32, 64]
 	do i = 1, 4
 		call li31(timestep(i),xrange,yerror(i),zerror(i), theta)
 	end do 
