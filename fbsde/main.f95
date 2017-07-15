@@ -3,7 +3,7 @@ module main
 	implicit none
 	private
 	public::function51sde, function51, turevalue, &
-			gauss_hermite,  newtoninterpl, leastsquare, li51
+			thelengthofx, gauss_hermite,  newtoninterpl, leastsquare, li51
 
 contains
 
@@ -58,7 +58,64 @@ contains
 		w = dsqrt(4.0d0*dATAN(1.0d0))*cm(1,:)**2
 		deallocate(a)
 		deallocate(cm)
-	end subroutine		
+	end subroutine
+
+	subroutine thelengthofx(x0,k,timestep,xrange)
+		real(kind=8), intent(in):: x0
+		integer, intent(in):: k, timestep
+		real(kind=8),intent(inout):: xrange
+		real(kind=8),dimension(k):: w, a
+		real(kind=8):: timesteplength, xsteplength, b, tau, x_max, x_min
+		real(kind=8),dimension(:),allocatable:: x, x_need
+		real(kind=8),dimension(0:timestep)::t
+		integer:: xstep, xindex, timeindex, xneedindex
+		allocate(x_need(k))
+		w(:)=0.0d0
+		a(:)=0.0d0
+		call gauss_hermite(k, w, a)
+		print*,"w=",w
+		print*,"a=",a
+		timesteplength = 1.0d0/dfloat(timestep)
+		print*,"timesteplength=",timesteplength
+		xsteplength = timesteplength**(0.75)
+		print*,"xsteplength=",xsteplength
+		!xsteplength depended on the order of x and the order of t
+		xstep = floor(xrange/xsteplength)
+		print*,"xstep=",xstep
+		allocate(x(-xstep:xstep)) 
+		do timeindex = 0, timestep
+			t(timeindex) = dfloat(timeindex) 
+		end do 
+		t = t * timesteplength
+		print*,"t=",t
+		x(0) = x0
+		do xindex = -xstep,xstep
+			x(xindex) = x(0)+dfloat(xindex)*xsteplength
+		end do
+		print*,"x=",x
+		xneedindex = 0
+		do timeindex = 0,timestep
+			print*, "timeindex=", timeindex
+			call function51sde(t(timeindex),x(xneedindex),b,tau)
+			print*, "b=", b, "tau = ", tau 
+			x_need = x(xneedindex)+b*timesteplength+tau*dsqrt(2.0d0*timesteplength)*a
+			print*, "x_need=", x_need
+			x_max = dabs(maxval(x_need))
+			print*, "x_max=", x_max
+			x_min = dabs(minval(x_need))
+			print*, "x_min=", x_min
+			if (x_min > x_max) then 
+				x_max = x_min
+			end if 
+			print*, "x_max= ", x_max
+			xneedindex = floor((x_max-x0)/xsteplength)+1
+			print*,"xneedindex= ", xneedindex 
+		end do 
+		xrange = x0 + xneedindex*xsteplength
+		print*,"xrange= ", xrange
+		deallocate(x)
+		deallocate(x_need)
+	end subroutine
 subroutine newtoninterpl(x, y, x_aim, y_aim)
 		!finall y_aim which is our need
 		real(kind=8), dimension(:), intent(inout):: x
