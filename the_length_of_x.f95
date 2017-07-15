@@ -1,3 +1,0 @@
-subroutine the_length_of_x
-
-end subroutine
