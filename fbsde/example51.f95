@@ -4,13 +4,15 @@ program example51
 	implicit none
 	integer,dimension(5)::timestep
 	real(kind=8),dimension(5)::yerror, zerror
-	real(kind=8)::ordery, orderz, theta
-	integer::i
+	real(kind=8)::ordery, orderz
+	integer::i,xrange
 
 !	read*,theta 
+	print*,"xrange="
+	read*, xrange
 	timestep = [32, 64, 128, 256, 512]
 	do i = 1, 5
-		call li51(timestep(i), yerror(i), zerror(i))
+		call li51(timestep(i), xrange,yerror(i), zerror(i))
 		print*, "y error", yerror(i)
 		print*, "z error", zerror(i)
 	end do 
