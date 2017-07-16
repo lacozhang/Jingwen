@@ -1,7 +1,8 @@
 module main
 	implicit none
 	private
-	public:: gauss_hermite, function34,finalvaluey,valuez, newtoninterpl, leastsquare, li34y
+	public:: gauss_hermite, function34, thelengthofx, finalvaluey,& 
+			valuez, newtoninterpl, leastsquare, li34y
 
 contains
 
@@ -22,8 +23,6 @@ contains
 
 		do temp = 1,n-1
 			a(temp) = dsqrt(dfloat(temp)*0.5d0)
-
-
 		end do 
 		
 		cm(:,:) = 0.0d0
@@ -37,18 +36,17 @@ contains
 		x = l
 		w = dsqrt(4.0d0*dATAN(1.0d0))*cm(1,:)**2
 		deallocate(a)
-		deallocate(cm)	
+		deallocate(cm)
 	end subroutine		
 
-	
 	pure subroutine function34(y,f,f1,f2)
 		real(kind=8),intent(in)::y
 		real(kind=8),intent(out)::f,f1,f2
 		!f = -y*(1-y)*(0.75- y)
 		!f1 = -3*(y**2) +3.5*y-0.75
 		!f2 = -6*y +3.5
-		f = - (y**3) + 2.5* (y ** 2) - 1.5*y
-		f1 = - 3.0d0 * (y**2) + 5.0d0*y - 1.5
+		f = - (y**3) + 2.5d0* (y ** 2) - 1.5d0*y
+		f1 = - 3.0d0 * (y**2) + 5.0d0*y - 1.5d0
 		f2 = -6.0d0*y+5.0d0
 		
 	end subroutine
@@ -64,37 +62,96 @@ contains
 		!z = (exp(-x-0.25*t))/((1+exp(-x-0.25*t))**2)
 		z = dexp(x+t)/((dexp(x+t)+1.0d0)**2)
 	end subroutine
+	subroutine thelengthofx(x0,k,timestep,xrange)
+		real(kind=8), intent(in):: x0
+		integer, intent(in):: k, timestep
+		real(kind=8),intent(inout):: xrange
+		real(kind=8),dimension(k):: w, a
+		real(kind=8):: timesteplength, xsteplength,  x_max, x_min
+		real(kind=8),dimension(:),allocatable:: x, x_need
+		real(kind=8),dimension(0:timestep)::t
+		integer:: xstep, xindex, timeindex, xneedindex
+		allocate(x_need(k))
+		w(:)=0.0d0
+		a(:)=0.0d0
+		call gauss_hermite(k, w, a)
+		!print*,"w=",w
+		!print*,"a=",a
+		timesteplength = 1.0d0/dfloat(timestep)
+		!print*,"timesteplength=",timesteplength
+		xsteplength = timesteplength**(0.75)
+		!print*,"xsteplength=",xsteplength
+		!xsteplength depended on the order of x and the order of t
+		xstep = floor(xrange/xsteplength)
+		allocate(x(-xstep:xstep)) 
+		do timeindex = 0, timestep
+			t(timeindex) = dfloat(timeindex) 
+		end do 
+		t = t * timesteplength
+		x(0) = x0
+		do xindex = -xstep,xstep
+			x(xindex) = x(0)+dfloat(xindex)*xsteplength
+		end do
+		xneedindex = 0
+		do timeindex = 0,timestep
+			x_need = x(xneedindex)+dsqrt(2.0d0*timesteplength)*a
+			x_max = maxval(dabs(x_need))
+			!print*, "x_max= ", x_max
+			xneedindex = floor((x_max-x0)/xsteplength)+1
+			
+			if (xneedindex > xstep)then
+				print*,"xneedindex= ", xneedindex
+				print*,"xstep=", xstep
+				print*, "xmax=", x_max
+				print*, "x0= ", x0
+				print*, "xmax - x0 = ", x_max-x0
+				print*, "xsteplength= ", xsteplength
+				print*,"please,extend the xrange"
+				exit
+			end if 
+			
+		end do 
+		xrange = x0 + xneedindex*xsteplength
+		!print*,"xrange= ", xrange
+		deallocate(x)
+		deallocate(x_need)
+	end subroutine
 	subroutine newtoninterpl(x, y, x_aim, y_aim)
 		!finall y_aim which is our need
-		real(kind=8), dimension(:), intent(inout):: x
+		real(kind=8), dimension(:), intent(in):: x
 		real(kind=8), dimension(:), intent(in):: y
 		real(kind=8), intent(inout):: x_aim
 		real(kind=8), intent(out):: y_aim 
 		real(kind=8), dimension(:,:), allocatable:: z
+		real(kind=8), dimension(:),allocatable::x_
 		integer:: sizex, temp1, temp2,  w
 		real(kind=8)::n
 		sizex = size(x)
 		allocate(z(sizex,sizex))
+		allocate(x_(sizex))
+		x_ = x 
 		z(:,:) = 0.0d0
 		n = 0.0d0
 		z(:,1) = y
 		do temp2 = 2,sizex
 			do temp1 = temp2, sizex
-				z(temp1,temp2) = (z(temp1-1,temp2-1)-z(temp1,temp2-1))/(x(temp1-(temp2-1))-x(temp1))
-			end do 
+				z(temp1,temp2) = (z(temp1-1,temp2-1)-z(temp1,temp2-1))/(x_(temp1-(temp2-1))-x_(temp1))
+			end do
 		end do
-		x(2:sizex) = x(1:(sizex-1))
-		x(1) = x_aim -1.0d0
-		x = x_aim - x
+		x_(2:sizex) = x_(1:(sizex-1))
+		x_(1) = x_aim - 1.0d0
+		x_ = x_aim - x_
 		do temp1 = 2, sizex
-			x(temp1) = x(temp1-1)*x(temp1)
+			x_(temp1) = x_(temp1-1)*x_(temp1)
 		end do
 		do temp1 = 1, sizex
-			n = n+z(temp1,temp1)*x(temp1)
-		end do 
-		y_aim = n 
+			n = n+z(temp1,temp1)*x_(temp1)
+		end do
+		y_aim = n
 		deallocate(z)
+		deallocate(x_)
 	end subroutine
+
 	subroutine leastsquare(timestep, error, order)
 	!sizeerror >= 2
 		real(kind=8), dimension(:),intent(inout)::error
@@ -110,10 +167,10 @@ contains
 		allocate(timesteplength(sizeerror))
 		allocate(a(sizeerror,2))
 		allocate(work(lwork))
-		timesteplength = 1.0d0/(timestep)
+		timesteplength = 1.0d0 / dfloat(timestep)
 		error = dlog(error)
 		timesteplength = dlog(timesteplength)
-		a = 1.0d0
+		a(:,:) = 1.0d0
 		a(:,2) = timesteplength
 		call dgels('N', sizeerror, 2, 1, a, sizeerror, error, sizeerror, work, lwork, info)
 		order = error(2)
@@ -121,7 +178,7 @@ contains
 		deallocate(a)
 		deallocate(work)
 	end subroutine
-	
+
 	!using 4 points
 	subroutine interpolateIndex(xvalues, yvalues, xpoint, xsteplength, timesteps, xsteps, timeindex, xintvalues, yintvalues)
 	!xvalues:is the all values of x   xintvalues: we need (xpoint in them) 
@@ -135,21 +192,16 @@ contains
 		integer:: overflow
 
 		overflow = 0
-
 		xindex(3) = floor(xpoint/xsteplength)
 		xindex(4) = xindex(3)+1
 		xindex(2) = xindex(3)-1
-		xindex(1) = xindex(3)-2		
-
-	
-
+		xindex(1) = xindex(3)-2
 		if(xindex(1) < -xsteps) then
 			xindex(1) = -xsteps
 			xindex(2) = xindex(1)+1
 			xindex(3) = xindex(2)+1
 			xindex(4) = xindex(3)+1
 			overflow = 1
-			
 		end if
 
 		if(xindex(4) > xsteps) then
@@ -158,7 +210,6 @@ contains
 			xindex(2) = xindex(3)-1
 			xindex(1) = xindex(2)-1
 			overflow = 1
-			
 		end if
 
 		xintvalues(1) = xvalues(xindex(1))
@@ -183,7 +234,6 @@ contains
 			print*, "high val", xvalues(xindex(4))
 			print*, "val ", xpoint
 		end if
-
 	end subroutine
 	subroutine li34y(timestep, xrange,yerror, theta1)
 		integer, intent(inout):: timestep
@@ -192,10 +242,10 @@ contains
 		integer, intent(in)::xrange 
 		real(kind=8), dimension(:,:), allocatable:: y
 		real(kind=8), dimension(:),allocatable:: t, x
-		real(kind=8):: timesteplength, xsteplength, yb, zb
+		real(kind=8):: timesteplength, xsteplength, yb, zb, actual_range
 
 ! 	
-		integer::  i, timeindex, xindex, xstep, k, x_point1, x_point2,x_point3,x_point4
+		integer::  i, timeindex, xindex, xstep, k, x_point1, tindex
 		integer:: overflow
 		real(kind=8):: f, f1, f2
 		real(kind=8):: expecty, expectf, expectf1f, expectf2zz
@@ -203,7 +253,7 @@ contains
 		real(kind=8), dimension(1):: temp_point, temp_y
 		real(kind=8), dimension(:),allocatable:: w, a
 		real(kind=8), dimension(4)::yinterpl, xinterpl
-		real(kind=8), parameter::  yture=0.5
+		real(kind=8), parameter::  yture=0.5d0,  x0= 0.0d0
 		integer:: cycleindex
 		
 	
@@ -211,35 +261,31 @@ contains
 		pi = 4.0d0*datan(1.0d0)
 		!print*,"pi=",pi
 		print*, "number of steps : ", timestep
-		timesteplength = (1.0d0)/timestep
+		timesteplength = (1.0d0)/dfloat(timestep)
 		print*, "timesteplength  : ", timesteplength
 		
 		
 	! GH
 		k = 10
-		
-		!print*, "gauss hermite number  : ", k
-		
-
 		allocate(w(k))
 		allocate(a(k))
-		!print*,"w",w,"a",a
 		call gauss_hermite(k, w, a)
-		!print*,"w=",w,"a=",a
 	! end GH
-		!print*,"k=", k, "timestep=", timestep, "timesteplength=", timesteplength
-		
-		!print*,"xrange= ", xrange 
-		if(theta1 == 0.5) then
+
+		if(abs(theta1-0.5) < 1d-12) then
 			xsteplength = (timesteplength) ** (1.25)
 			print*,"using 1.25"
 		else
 			xsteplength = timesteplength
 			print*,"using 1"
 		end if
+		!xsteplength = (timesteplength)**(0.5)
 		!!!!!!!!be detemined by the order of x space and t space
 		!print*, "xsteplength   = : ", xsteplength
- 
+		actual_range = xrange
+		call thelengthofx(x0,k,timestep,actual_range)
+		xstep = floor(actual_range/xsteplength)
+		print*,"actual_range:",actual_range
 		
 		
 		allocate(t(0:timestep))
@@ -255,7 +301,7 @@ contains
 	! x space range
 		x(0) = 0.0d0
 		do xindex = -xstep, xstep
-			x(xindex) = xindex
+			x(xindex) = dfloat(xindex)
 		end do
 		x = x * xsteplength
 		!print*,"x space:",x
@@ -280,9 +326,10 @@ contains
 				expectf2zz = 0.0d0
 				do i = 1,k
 					x_point = x(xindex)+dsqrt(2.0d0*timesteplength)*a(i)
-					call interpolateIndex(x, y, x_point, xsteplength, timestep, xstep, timeindex+1, xinterpl, yinterpl)
+					tindex = timeindex+1
+					call interpolateIndex(x, y, x_point, xsteplength, timestep, xstep, tindex, xinterpl, yinterpl)
 					call newtoninterpl(xinterpl,yinterpl, x_point, yb)	
-					call valuez(t(timeindex+1),x_point,zb)
+					call valuez(t(tindex),x_point,zb)
 					call function34(yb,f,f1,f2)
 					expecty = expecty +w(i)*yb
 					expectf = expectf +w(i)*f
@@ -296,15 +343,15 @@ contains
 			    !print*,"expecty= ",expecty ,"expectf=",expectf,"expectf1f=",expectf1f,"expectf2zz=",expectf2zz
 				call valuez(t(timeindex),x(xindex),zb)
 				y0 = y(timeindex+1,xindex)
-				print*,"y0=",y0
+				!rint*,"y0=",y0
 				do 
 					cycleindex = cycleindex + 1
-					print*, 'circle ', cycleindex
+					!print*, 'circle ', cycleindex
 					call function34(y0,f,f1,f2)
 					
 					y1 = expecty + theta1*timesteplength*f + (1.0d0-theta1)*timesteplength*expectf+ &
-					!((3.0d0*theta1-1.0d0)/6.0d0)*(timesteplength**2)*(-f1*f+0.5*f2*zb*zb)+&
-					-(1.0d0/6.0d0)*(timesteplength**2)*(-expectf1f +0.5*expectf2zz)
+					((3.0d0*theta1-1.0d0)/6.0d0)*(timesteplength**2)*(-f1*f+0.5d0*f2*zb*zb)+&
+					((3.0d0*theta1-2.0d0)/6.0d0)*(timesteplength**2)*(-expectf1f +0.5d0*expectf2zz)
 					
 					
 					diff = dabs(y1-y0)
@@ -315,12 +362,12 @@ contains
 					
 					y0 = y1
 				end do 
-				print*,"cycleindex:",cycleindex
+				!print*,"cycleindex:",cycleindex
 				y(timeindex,xindex) = y1 
 				call finalvaluey(t(timeindex), x(xindex), y_true_value)
-				 if (timeindex > 0) then
-					 y(timeindex, xindex) = y_true_value
-				 end if
+				 !if (timeindex > 0) then
+				!	 y(timeindex, xindex) = y_true_value
+				 !end if
 			!print*,"y(timeindex,xindex)=",y(timeindex,xindex)		
 			end do 
 		!print*, 'end compute y'

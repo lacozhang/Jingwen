@@ -5,13 +5,12 @@ program example34
 	real(kind=8),dimension(4)::yerror
 	real(kind=8)::ordery, theta1
 	integer::i, xrange
-	! print*,"theta1 = "
-	! read*,theta1
+	print*,"theta1 = "
+	read*,theta1
 	print*,"xrange = "
 	read*,xrange
 	
-	theta1=1.0d0/3.0d0
-	timestep = (/4,8,16,32/)
+	timestep = (/32,64,126,252/)
 	do i = 1, 4
 		call li34y(timestep(i),xrange,yerror(i), theta1)
 	end do 
