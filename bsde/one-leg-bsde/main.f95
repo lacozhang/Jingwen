@@ -2,7 +2,7 @@ module main
 	implicit none
 	private
 	public:: gauss_hermite,  interpolateIndex, function34,finalvaluey,&
-			valuez, thelengthofx,  newtoninterpl, leastsquare, li31
+			valuez, thelengthofx,  newtoninterpl, leastsquare, li31,func34derivative
 
 
 contains
@@ -47,6 +47,12 @@ contains
 		f = - (y**3) + 2.5d0 * (y ** 2) - 1.5d0 * y
 	end subroutine
 
+	subroutine func34derivative(y, grad_y)
+		real(kind=8),intent(in)::y
+		real(kind=8),intent(out)::grad_y
+		grad_y = -3.0d0 * y ** 2 + 5.0d0 * y - 1.5d0 
+	end subroutine
+	
 	pure subroutine finalvaluey(t,x,y)
 		real(kind=8),intent(inout)::t,x
 		real(kind=8),intent(out)::y
@@ -115,6 +121,10 @@ contains
 		deallocate(x)
 		deallocate(x_need)
 	end subroutine
+
+
+
+
 subroutine newtoninterpl(x, y, x_aim, y_aim)
 		!finall y_aim which is our need
 		real(kind=8), dimension(:), intent(in):: x
@@ -150,6 +160,8 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		deallocate(z)
 		deallocate(x_)
 	end subroutine
+
+
 
 	subroutine leastsquare(timestep, error, order)
 	!sizeerror >= 2
@@ -249,8 +261,9 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		integer:: cycleindex
 		integer:: i, timeindex, xindex, xstep, k,tindex
 		integer:: overflow,signal 
-		real(kind=8):: f, expecty, expectf, expectyw,expectfw, expectz, pi, diff, y0, y1, x_point 
-		real(kind=8),dimension(:),allocatable:: w, a
+		real(kind=8):: f, fy, expecty, expectf, expectfyz, expectz, pi, y0, y1, y_i, z_i, x_point 
+		real(kind=8):: diff_y, diff_z
+		real(kind=8),dimension(:),allocatable:: w, a, y_cache, z_cache
 		real(kind=8), dimension(4)::yinterpl, xinterpl,zinterpl
 		real(kind=8), parameter:: yture=0.5d0, zture=0.25d0, x0= 0.0d0
 
@@ -268,6 +281,8 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 
 		allocate(w(k))
 		allocate(a(k))
+		allocate(y_cache(k))
+		allocate(z_cache(k))
 		call gauss_hermite(k, w, a)
 	! end GH
      
@@ -302,6 +317,9 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 
 		allocate(y(0:timestep,-xstep:xstep))
 		allocate(z(0:timestep,-xstep:xstep))
+		
+		y(:,:)=0.0d0
+		z(:,:)=0.0d0
 
 	! last line of Y matrix
 		do xindex = -xstep, xstep
@@ -316,59 +334,85 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 ! when 0<= n <=N-1
 
 		do timeindex = timestep-1, 0, -1
+			print*, "timex ", timeindex
 			do xindex = -xstep, xstep
+				y_i = y(timeindex+1, xindex)
+				z_i = z(timeindex+1, xindex)
+				cycleindex = 0
+				y_cache(:) = 0.0d0
+				z_cache(:) = 0.0d0
 				expecty = 0.0d0
-				expectf = 0.0d0
-				expectyw = 0.0d0
-				expectfw = 0.0d0
-				expectz = 0.0d0			
-				!find the interpolation point
+				expectz = 0.0d0
+
 				do i = 1, k
 					x_point = x(xindex)+dsqrt(2.0d0*timesteplength)*a(i)
 					tindex = timeindex+1
 					call interpolateIndex(x, y, x_point, xsteplength, timestep, xstep, tindex,xinterpl, yinterpl)
 					call interpolateIndex(x, z, x_point, xsteplength, timestep, xstep, tindex,xinterpl, zinterpl)
 					call newtoninterpl(xinterpl, yinterpl, x_point, yb)
-
-					
 					call newtoninterpl(xinterpl, zinterpl, x_point, zb)
+					y_cache(i) = yb
+					z_cache(i) = zb
+					expecty = expecty+w(i)*yb
+					expectz = expectz + w(i)*zb
+				end do
 				
-					call function34(yb,f)
-					expecty = expecty+w(i)*yb 
-					expectf = expectf+w(i)*f
-					expectyw = expectyw + w(i)*yb*dsqrt(2.0d0*timesteplength)*a(i)
-					expectfw = expectfw + w(i)*f*dsqrt(2.0d0*timesteplength)*a(i)
-					expectz = expectz + w(i)*zb 
-				end do
-!				print*, expectz 
 				expecty = expecty/dsqrt(pi)
-				expectf = expectf/dsqrt(pi)
-				expectyw = expectyw/dsqrt(pi)
-				expectfw = expectfw/dsqrt(pi)
 				expectz = expectz/dsqrt(pi)
-	
-				z(timeindex,xindex) = (expectyw+(1.0d0-theta)*timesteplength*expectfw-&
-				(1.0d0-theta)*timesteplength*expectz)/(theta*timesteplength)
 
-				y0 = y(timeindex+1,xindex)
-				cycleindex = 0
-				do 
+				do
 					cycleindex = cycleindex + 1
-					call function34(y0,f)
-					y1 = expecty + (1.0d0-theta)*timesteplength*expectf + theta*timesteplength*f
-					diff=dabs(y0-y1)
-					if (diff <= 1d-12) then 
+					expectf = 0.0d0
+					!find the interpolation point
+					do i = 1, k
+						call function34(y_cache(i)*(1.0d0-theta)+theta*y_i,f)
+						expectf = expectf+w(i)*f
+					end do
+!					print*, expectz 
+					expectf = expectf/dsqrt(pi)
+
+					y(timeindex, xindex) = expecty + timesteplength * expectf
+					
+					diff_y = dabs(y(timeindex, xindex) - y_i)
+					
+					if ((diff_y <= 10-12)) then
 						exit
 					end if
-					y0 = y1
-					if (cycleindex > 10000) then
+					
+					if (cycleindex > 100000) then
 						exit
 					end if
+
+					y_i = y(timeindex, xindex)
 				end do
-				!print*,"cycleindex:",cycleindex
-				y(timeindex,xindex) = y1
-			end do 
-			
+
+				cycleindex=0
+				do
+					cycleindex = cycleindex + 1
+					expectfyz = 0.0d0
+					!find the interpolation point
+					do i = 1, k
+						call func34derivative(y_cache(i)*(1.0d0-theta)+theta*y_i, fy)
+						expectfyz = expectfyz + w(i)*fy*((1.0d0-theta)*z_cache(i)+z_i)
+					end do
+!					print*, expectz 
+					expectfyz = expectfyz/dsqrt(pi)
+
+					z(timeindex, xindex) = expectz + timesteplength * expectfyz
+					diff_z = dabs(z(timeindex, xindex) - z_i)
+					
+					if ((diff_z <= 10-12)) then
+						exit
+					end if
+					
+					if (cycleindex > 100000) then
+						exit
+					end if
+
+					z_i = z(timeindex, xindex)
+				end do
+			end do
+
 		end do 
 		!print*,"z(0,0)=",z(0,0)
 		!print*,"y(0,0)=",y(0,0)
