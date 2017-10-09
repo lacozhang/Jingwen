@@ -40,25 +40,28 @@ contains
 		deallocate(cm)
 	end subroutine		
 
-	pure subroutine function34(y,f)
-		real(kind=8),intent(in)::y
+	pure subroutine function34(y,z,f)
+		real(kind=8),intent(in)::y,z
 		real(kind=8),intent(out)::f
 		!f = -y*(1-y)*(0.75- y)
-		f = - (y**3) + 2.5d0 * (y ** 2) - 1.5d0 * y
+		!f = - (y**3) + 2.5d0 * (y ** 2) - 1.5d0 * y
+		f = 0.5*y-z
 	end subroutine
 
 	pure subroutine finalvaluey(t,x,y)
-		real(kind=8),intent(inout)::t,x
+		real(kind=8),intent(in)::t,x
 		real(kind=8),intent(out)::y
 		!y = (1.0)/(1+dexp(-x-0.25*t))		
-		y = dexp(t+x)/(dexp(t+x)+1.0d0)
+		!y = dexp(t+x)/(dexp(t+x)+1.0d0)
+		y = dsin(x+t)
 	end subroutine
 
 	pure subroutine valuez(t,x,z)
-		real(kind=8),intent(inout)::t,x
+		real(kind=8),intent(in)::t,x
 		real(kind=8),intent(out)::z
 		!z = (dexp(-x-0.25*t))/((1.0d0+dexp(-x-0.25*t))**2)
-		z = dexp(x+t)/((dexp(x+t)+1.0d0)**2)
+		!z = dexp(x+t)/((dexp(x+t)+1.0d0)**2)
+		z = dcos(x+t)
 	end subroutine
 
 	subroutine thelengthofx(x0,k,timestep,xrange)
@@ -119,7 +122,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		!finall y_aim which is our need
 		real(kind=8), dimension(:), intent(in):: x
 		real(kind=8), dimension(:), intent(in):: y
-		real(kind=8), intent(inout):: x_aim
+		real(kind=8), intent(in):: x_aim
 		real(kind=8), intent(out):: y_aim 
 		real(kind=8), dimension(:,:), allocatable:: z
 		real(kind=8), dimension(:),allocatable::x_
@@ -154,7 +157,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 	subroutine leastsquare(timestep, error, order)
 	!sizeerror >= 2
 		real(kind=8), dimension(:),intent(inout)::error
-		integer, dimension(:),intent(inout)::timestep
+		integer, dimension(:),intent(in)::timestep
 		real(kind=8), dimension(:), allocatable::timesteplength
 		real(kind=8), intent(out)::order
 		real(kind=8), dimension(:,:), allocatable:: a
@@ -252,7 +255,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		real(kind=8):: f, expecty, expectf, expectyw,expectfw, expectz, pi, diff, y0, y1, x_point 
 		real(kind=8),dimension(:),allocatable:: w, a
 		real(kind=8), dimension(4)::yinterpl, xinterpl,zinterpl
-		real(kind=8), parameter:: yture=0.5d0, zture=0.25d0, x0= 0.0d0
+		real(kind=8), parameter:: yture=0.0d0, zture=1.0d0, x0= 0.0d0
 
 		pi = 4.0d0*dATAN(1.0d0)
 		!print*,"pi=",pi
@@ -333,7 +336,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 					
 					call newtoninterpl(xinterpl, zinterpl, x_point, zb)
 				
-					call function34(yb,f)
+					call function34(yb,zb,f)
 					expecty = expecty+w(i)*yb 
 					expectf = expectf+w(i)*f
 					expectyw = expectyw + w(i)*yb*dsqrt(2.0d0*timesteplength)*a(i)
@@ -354,7 +357,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 				cycleindex = 0
 				do 
 					cycleindex = cycleindex + 1
-					call function34(y0,f)
+					call function34(y0,z(timeindex,xindex),f)
 					y1 = expecty + (1.0d0-theta)*timesteplength*expectf + theta*timesteplength*f
 					diff=dabs(y0-y1)
 					if (diff <= 1d-12) then 
@@ -368,7 +371,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 				!print*,"cycleindex:",cycleindex
 				y(timeindex,xindex) = y1
 			end do 
-			
+
 		end do 
 		!print*,"z(0,0)=",z(0,0)
 		!print*,"y(0,0)=",y(0,0)

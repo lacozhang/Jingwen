@@ -45,6 +45,7 @@ contains
 		real(kind=8),intent(out)::f
 		!f = -y*(1-y)*(0.75- y)
 		f = - (y**3) + 2.5d0 * (y ** 2) - 1.5d0 * y
+		!f = 0.5*y-z
 	end subroutine
 
 	pure subroutine finalvaluey(t,x,y)
@@ -52,6 +53,7 @@ contains
 		real(kind=8),intent(out)::y
 		!y = (1.0)/(1+dexp(-x-0.25*t))		
 		y = dexp(t+x)/(dexp(t+x)+1.0d0)
+		!y = dsin(x+t)
 	end subroutine
 
 	pure subroutine valuez(t,x,z)
@@ -59,6 +61,7 @@ contains
 		real(kind=8),intent(out)::z
 		!z = (dexp(-x-0.25*t))/((1.0d0+dexp(-x-0.25*t))**2)
 		z = dexp(x+t)/((dexp(x+t)+1.0d0)**2)
+		!z = dcos(x+t)
 	end subroutine
 
 	subroutine thelengthofx(x0,k,timestep,xrange)
@@ -115,6 +118,7 @@ contains
 		deallocate(x)
 		deallocate(x_need)
 	end subroutine
+
 subroutine newtoninterpl(x, y, x_aim, y_aim)
 		!finall y_aim which is our need
 		real(kind=8), dimension(:), intent(in):: x
@@ -249,8 +253,8 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		integer:: cycleindex
 		integer:: i, timeindex, xindex, xstep, k,tindex
 		integer:: overflow,signal 
-		real(kind=8):: f, expecty, expectf, expectyw,expectfw, expectz, pi, diff, y0, y1, x_point 
-		real(kind=8),dimension(:),allocatable:: w, a
+		real(kind=8):: f, expecty, expectf, expectyw,expectfw, expectz, pi, diff, y0, y1, x_point, y_i
+		real(kind=8),dimension(:),allocatable:: w, a, yb_cache, zb_cache
 		real(kind=8), dimension(4)::yinterpl, xinterpl,zinterpl
 		real(kind=8), parameter:: yture=0.5d0, zture=0.25d0, x0= 0.0d0
 
@@ -269,6 +273,11 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		allocate(w(k))
 		allocate(a(k))
 		call gauss_hermite(k, w, a)
+		
+		allocate(yb_cache(k))
+		allocate(zb_cache(k))
+		yb_cache(:)=0.0d0
+		zb_cache(:)=0.0d0
 	! end GH
      
 		if(dabs(theta -0.5d0) < 1d-15) then
@@ -302,6 +311,9 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 
 		allocate(y(0:timestep,-xstep:xstep))
 		allocate(z(0:timestep,-xstep:xstep))
+		
+		y(:,:)=0.0d0
+		y(:,:)=0.0d0
 
 	! last line of Y matrix
 		do xindex = -xstep, xstep
@@ -321,54 +333,62 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 				expectf = 0.0d0
 				expectyw = 0.0d0
 				expectfw = 0.0d0
-				expectz = 0.0d0			
-				!find the interpolation point
+				expectz = 0.0d0
+				
 				do i = 1, k
 					x_point = x(xindex)+dsqrt(2.0d0*timesteplength)*a(i)
 					tindex = timeindex+1
 					call interpolateIndex(x, y, x_point, xsteplength, timestep, xstep, tindex,xinterpl, yinterpl)
 					call interpolateIndex(x, z, x_point, xsteplength, timestep, xstep, tindex,xinterpl, zinterpl)
 					call newtoninterpl(xinterpl, yinterpl, x_point, yb)
-
-					
 					call newtoninterpl(xinterpl, zinterpl, x_point, zb)
+					yb_cache(i) = yb
+					zb_cache(i) = zb
+				end do
 				
-					call function34(yb,f)
-					expecty = expecty+w(i)*yb 
-					expectf = expectf+w(i)*f
-					expectyw = expectyw + w(i)*yb*dsqrt(2.0d0*timesteplength)*a(i)
+				do i = 1, k
+					call function34(yb_cache(i),f)
+					expecty = expecty+w(i)*yb_cache(i)
+					expectyw = expectyw + w(i)*yb_cache(i)*dsqrt(2.0d0*timesteplength)*a(i)
 					expectfw = expectfw + w(i)*f*dsqrt(2.0d0*timesteplength)*a(i)
-					expectz = expectz + w(i)*zb 
+					expectz = expectz + w(i)*zb_cache(i)
 				end do
 !				print*, expectz 
 				expecty = expecty/dsqrt(pi)
-				expectf = expectf/dsqrt(pi)
 				expectyw = expectyw/dsqrt(pi)
 				expectfw = expectfw/dsqrt(pi)
 				expectz = expectz/dsqrt(pi)
-	
 				z(timeindex,xindex) = (expectyw+(1.0d0-theta)*timesteplength*expectfw-&
 				(1.0d0-theta)*timesteplength*expectz)/(theta*timesteplength)
-
-				y0 = y(timeindex+1,xindex)
-				cycleindex = 0
-				do 
+				
+				y_i = y(timeindex+1, xindex)
+				cycleindex=0
+				do
+					expectf=0.0d0
 					cycleindex = cycleindex + 1
-					call function34(y0,f)
-					y1 = expecty + (1.0d0-theta)*timesteplength*expectf + theta*timesteplength*f
-					diff=dabs(y0-y1)
-					if (diff <= 1d-12) then 
+					do i=1,k
+						call function34((1.0d0-theta)*yb_cache(i) + theta*y_i, f)
+						expectf = expectf + w(i)*f
+					end do
+					
+					expectf = expectf / dsqrt(pi)
+					y(timeindex, xindex) = expecty + timesteplength * expectf
+					diff = dabs(y(timeindex, xindex) - y_i)
+					if (diff <= 1e-15) then
 						exit
 					end if
-					y0 = y1
-					if (cycleindex > 10000) then
-						exit
-					end if
+					y_i = y(timeindex, xindex)
 				end do
-				!print*,"cycleindex:",cycleindex
-				y(timeindex,xindex) = y1
-			end do 
-			
+				
+
+				do i = 1, k
+					
+				end do
+!				print*, expectz 
+				
+	
+				
+			end do
 		end do 
 		!print*,"z(0,0)=",z(0,0)
 		!print*,"y(0,0)=",y(0,0)

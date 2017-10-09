@@ -11,7 +11,7 @@ program example31
 	!theta = 1.0d0/3.0d0
 	print*,"xrange = "
 	read*,xrange
-	timestep = [8, 16, 32, 64]
+	timestep = [ 4, 8, 16, 32]
 	do i = 1, 4
 		call li31(timestep(i),xrange,yerror(i),zerror(i), theta)
 	end do 
