@@ -264,7 +264,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		timesteplength = (1.0d0)/dfloat(timestep)
 		print*, "timesteplength  : ", timesteplength
 		
-		
+		open(unit=20, file="trace.txt")
 	! GH
 		k = 10
 		print*, "number of steps : ", timestep
@@ -274,17 +274,17 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		allocate(a(k))
 		call gauss_hermite(k, w, a)
 		
-		allocate(yb_cache(k))
-		allocate(zb_cache(k))
+		allocate(yb_cache(1:k))
+		allocate(zb_cache(1:k))
 		yb_cache(:)=0.0d0
 		zb_cache(:)=0.0d0
 	! end GH
      
 		if(dabs(theta -0.5d0) < 1d-15) then
-			xsteplength = (timesteplength) ** (0.75)
+			xsteplength = (timesteplength) ** (0.75d0)
 			print*, "using 0.75"
 		else
-			xsteplength = (timesteplength) ** (0.5)
+			xsteplength = (timesteplength) ** (0.5d0)
 			print*, "using 0.5"
 		end if
 		actual_range = xrange
@@ -329,18 +329,20 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 
 		do timeindex = timestep-1, 0, -1
 			do xindex = -xstep, xstep
+				print*, "xindex=", xindex
 				expecty = 0.0d0
 				expectf = 0.0d0
 				expectyw = 0.0d0
 				expectfw = 0.0d0
 				expectz = 0.0d0
-				
+				yb_cache(:) = 0.0d0
+				zb_cache(:) = 0.0d0
 				do i = 1, k
 					x_point = x(xindex)+dsqrt(2.0d0*timesteplength)*a(i)
 					tindex = timeindex+1
 					call interpolateIndex(x, y, x_point, xsteplength, timestep, xstep, tindex,xinterpl, yinterpl)
-					call interpolateIndex(x, z, x_point, xsteplength, timestep, xstep, tindex,xinterpl, zinterpl)
 					call newtoninterpl(xinterpl, yinterpl, x_point, yb)
+					call interpolateIndex(x, z, x_point, xsteplength, timestep, xstep, tindex,xinterpl, zinterpl)
 					call newtoninterpl(xinterpl, zinterpl, x_point, zb)
 					yb_cache(i) = yb
 					zb_cache(i) = zb
@@ -370,28 +372,26 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 						call function34((1.0d0-theta)*yb_cache(i) + theta*y_i, f)
 						expectf = expectf + w(i)*f
 					end do
-					
 					expectf = expectf / dsqrt(pi)
 					y(timeindex, xindex) = expecty + timesteplength * expectf
 					diff = dabs(y(timeindex, xindex) - y_i)
-					if (diff <= 1e-15) then
+					if (diff <= 1e-14) then
+						y(timeindex, xindex) = y_i
 						exit
 					end if
 					y_i = y(timeindex, xindex)
 				end do
-				
-
-				do i = 1, k
-					
-				end do
 !				print*, expectz 
-				
-	
-				
+				if (timeindex .gt. 0) then
+					call finalvaluey(t(timeindex), x(xindex), y(timeindex, xindex))
+				end if
 			end do
+			if (timeindex .eq. 0) then
+				write(unit=20, fmt=*) y(timeindex,:)
+			end if
 		end do 
-		!print*,"z(0,0)=",z(0,0)
-		!print*,"y(0,0)=",y(0,0)
+		print*,"z(0,0)=",z(0,0)
+		print*,"y(0,0)=",y(0,0)
 		zerror = dabs(zture - z(0,0))
 		yerror = dabs(yture - y(0,0))
 		!print*,"yerror", yerror

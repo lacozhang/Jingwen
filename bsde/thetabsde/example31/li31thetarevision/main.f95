@@ -44,24 +44,24 @@ contains
 		real(kind=8),intent(in)::y,z
 		real(kind=8),intent(out)::f
 		!f = -y*(1-y)*(0.75- y)
-		!f = - (y**3) + 2.5d0 * (y ** 2) - 1.5d0 * y
-		f = 0.5*y-z
+		f = - (y**3) + 2.5d0 * (y ** 2) - 1.5d0 * y
+		!f = 0.5*y-z
 	end subroutine
 
 	pure subroutine finalvaluey(t,x,y)
 		real(kind=8),intent(in)::t,x
 		real(kind=8),intent(out)::y
 		!y = (1.0)/(1+dexp(-x-0.25*t))		
-		!y = dexp(t+x)/(dexp(t+x)+1.0d0)
-		y = dsin(x+t)
+		y = dexp(t+x)/(dexp(t+x)+1.0d0)
+		!y = dsin(x+t)
 	end subroutine
 
 	pure subroutine valuez(t,x,z)
 		real(kind=8),intent(in)::t,x
 		real(kind=8),intent(out)::z
 		!z = (dexp(-x-0.25*t))/((1.0d0+dexp(-x-0.25*t))**2)
-		!z = dexp(x+t)/((dexp(x+t)+1.0d0)**2)
-		z = dcos(x+t)
+		z = dexp(x+t)/((dexp(x+t)+1.0d0)**2)
+		!z = dcos(x+t)
 	end subroutine
 
 	subroutine thelengthofx(x0,k,timestep,xrange)
@@ -255,7 +255,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		real(kind=8):: f, expecty, expectf, expectyw,expectfw, expectz, pi, diff, y0, y1, x_point 
 		real(kind=8),dimension(:),allocatable:: w, a
 		real(kind=8), dimension(4)::yinterpl, xinterpl,zinterpl
-		real(kind=8), parameter:: yture=0.0d0, zture=1.0d0, x0= 0.0d0
+		real(kind=8), parameter:: yture=0.5d0, zture=0.25d0, x0= 0.0d0
 
 		pi = 4.0d0*dATAN(1.0d0)
 		!print*,"pi=",pi
@@ -285,6 +285,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 		call thelengthofx(x0,k,timestep,actual_range)
 		xstep = floor(actual_range/xsteplength)
 		print*,"actual_range:",actual_range
+		open(unit=20, file="o.trace.txt")
 		
 
 		allocate(t(0:timestep))
@@ -360,7 +361,7 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 					call function34(y0,z(timeindex,xindex),f)
 					y1 = expecty + (1.0d0-theta)*timesteplength*expectf + theta*timesteplength*f
 					diff=dabs(y0-y1)
-					if (diff <= 1d-12) then 
+					if (diff <= 1d-16) then 
 						exit
 					end if
 					y0 = y1
@@ -370,8 +371,14 @@ subroutine newtoninterpl(x, y, x_aim, y_aim)
 				end do
 				!print*,"cycleindex:",cycleindex
 				y(timeindex,xindex) = y1
+				
+				if (timeindex .gt. 0) then
+					call finalvaluey(t(timeindex), x(xindex), y(timeindex, xindex))
+				end if
 			end do 
-
+			if (timeindex .eq. 0) then
+				write(unit=20, fmt=*) y(timeindex,:)
+			end if
 		end do 
 		!print*,"z(0,0)=",z(0,0)
 		!print*,"y(0,0)=",y(0,0)
