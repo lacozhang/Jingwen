@@ -4,30 +4,51 @@
 #include "../Common/common.h"
 #include "easyoneleg.h"
 
-void function34(double y, double& f) {
-    f = -1.0e0 * std::pow(y, 3) + 2.5e0 * std::pow(y, 2.0e0) - 1.5e0 * y;
+namespace Function34 {
+    void function34(double y, double z, double& f) {
+        f = -1.0e0 * std::pow(y, 3) + 2.5e0 * std::pow(y, 2.0e0) - 1.5e0 * y;
+    }
+
+    void finalvaluey(double t, double x, double& y) {
+        double expo = t + x;
+        if (expo > 400) {
+            y = 1.0;
+        }
+        else if (expo < -400) {
+            y = 0.0;
+        }
+        else
+            y = std::exp(t + x) / (std::exp(t + x) + 1.0e0);
+    }
+
+    void valuez(double t, double x, double& z) {
+        z = std::exp(x + t) / std::pow(std::exp(x + t) + 1.0e0, 2.0);
+    }
+
+    const static double yture = 0.5e0, zture = 0.25e0;
 }
 
-void finalvaluey(double t, double x, double& y) {
-    double expo = t + x;
-    if (expo > 400) {
-        y = 1.0;
-    }
-    else if (expo < -400) {
-        y = 0.0;
-    }
-    else
-        y = std::exp(t + x) / (std::exp(t + x) + 1.0e0);
-}
+namespace LinearFunction {
 
-void valuez(double t, double x, double& z) {
-    z = std::exp(x + t) / std::pow(std::exp(x + t) + 1.0e0, 2.0);
+    void function34(double y, double z, double& f) {
+        f = 0.5*y - z;
+    }
+
+    void finalvaluey(double t, double x, double& y) {
+        y = std::sin(x + t);
+    }
+
+    void valuez(double t, double x, double& z) {
+        z = std::cos(x + t);
+    }
+
+    const static double y_true = 0.0, z_true = 1.0;
 }
 
 
 int main(int argc, const char* argv[]) {
     Eigen::VectorXi timesteps;
-    timesteps.resize(4);
+    timesteps.resize(5);
     timesteps[0] = 8;
     for (int i = 1; i < timesteps.size(); ++i) {
         timesteps[i] = timesteps[i - 1] * 2;
@@ -53,8 +74,10 @@ int main(int argc, const char* argv[]) {
 
     for (int i = 0; i < timesteps.size(); ++i) {
         std::cout << "Timesteps : " << timesteps[i] << std::endl;
+        // linear function example
         solve(timesteps[i], range, yerror[i], zerror[i], theta,
-            function34, finalvaluey, valuez);
+            LinearFunction::function34, LinearFunction::finalvaluey, LinearFunction::valuez,
+            LinearFunction::y_true, LinearFunction::z_true);
     }
 
     std::cout << "y errors : " << yerror << std::endl;

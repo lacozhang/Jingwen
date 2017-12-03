@@ -5,9 +5,10 @@
 /// yfunc: finalvaluey
 /// zfunc: valuez
 void solve(int timestep, double xrange, double & yerror, double & zerror, double theta,
-    std::function<void(double, double&)> func,
+    std::function<void(double, double, double&)> func,
     std::function<void(double, double, double&)> yfunc,
-    std::function<void(double, double, double&)> zfunc) {
+    std::function<void(double, double, double&)> zfunc,
+    const double ytrue, const double ztrue) {
     Eigen::MatrixXd y, z;
     Eigen::VectorXd t, x;
     Eigen::VectorXd w, a, yb_cache, zb_cache;
@@ -15,7 +16,7 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
     double timesteplength, xsteplength, yb, zb;
     double f, expecty, expectf, expectyw, expectfw, expectz, x_point, y_i;
     int tindex = 0;
-    const double yture = 0.5e0, zture = 0.25e0, x0 = 0.0e0;
+    const double x0 = 0.0e0;
 
     const double pi = 4.0e0 * std::atan(1.0e0);
     std::cout << "#steps    : " << timestep << std::endl;
@@ -26,8 +27,10 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
     std::cout << "gauss hermite : " << k << std::endl;
 
     GaussHermite(k, w, a);
+#ifdef _DEBUG
     std::cout << "w : " << std::endl << w << std::endl;
     std::cout << "a : " << std::endl << a << std::endl;
+#endif // _DEBUG
     yb_cache.resize(k);
     zb_cache.resize(k);
     yb_cache.setZero();
@@ -96,8 +99,8 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
     const double rt2det = std::sqrt(2.0e0*timesteplength);
 
     for (int timeindex = timestep - 1; timeindex >= 0; --timeindex) {
-//        std::cout << "time step : " << timeindex << std::endl;
-// #pragma omp parallel for
+        //        std::cout << "time step : " << timeindex << std::endl;
+        // #pragma omp parallel for
         for (int xindex = -xstep; xindex <= xstep; ++xindex) {
             expecty = 0.0e0;
             expecty = 0.0e0;
@@ -148,7 +151,7 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
 
 
             for (int i = 0; i < k; ++i) {
-                func(yb_cache[i], f);
+                func(yb_cache[i], zb_cache[i], f);
                 expecty += w[i] * yb_cache[i];
                 expectyw += w[i] * yb_cache[i] * rt2det * a[i];
                 expectfw += w[i] * f * rt2det * a[i];
@@ -173,7 +176,9 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
                 cycidx++;
 
                 for (int i = 0; i < k; ++i) {
-                    func((1.0e0 - theta)*yb_cache(i) + theta*y_i, f);
+                    func((1.0e0 - theta)*yb_cache(i) + theta*y_i, // y
+                        z(timeindex, xindex + IndexOffset), // z
+                        f);
                     expectf += w[i] * f;
                 }
                 expectf /= rtpi;
@@ -187,7 +192,7 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
                     y(timeindex, xindex + IndexOffset) = y_i;
                     break;
                 }
-                else if (cycidx > 1000000) {
+                else if (cycidx > 2000000) {
                     std::cout << "time " << timeindex << std::endl;
                     std::cout << "xindex " << xindex << std::endl;
                     std::cout << "abs : " << std::fabs(y_i - y(timeindex, xindex + IndexOffset)) << std::endl;
@@ -196,13 +201,15 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
                 y_i = y(timeindex, xindex + IndexOffset);
             } while (true);
 
+/*
             if (timeindex > 0) {
                 yfunc(t[timeindex], x[xindex + IndexOffset], y(timeindex, xindex + IndexOffset));
             }
+*/
 
         }
     }
 
-    zerror = std::fabs(zture - z(0, IndexOffset));
-    yerror = std::fabs(yture - y(0, IndexOffset));
+    zerror = std::fabs(ztrue - z(0, IndexOffset));
+    yerror = std::fabs(ytrue - y(0, IndexOffset));
 }
