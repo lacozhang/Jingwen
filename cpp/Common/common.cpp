@@ -55,6 +55,7 @@ void GaussHermite(int n, Eigen::VectorXd & w, Eigen::VectorXd & x) {
     if (retinfo != 0) {
         std::cerr << "Error when call dsyev" << std::endl;
         std::cerr << "ret info " << retinfo << std::endl;
+        std::exit(1);
     }
 
     w = cm.row(0).array().pow(2.0);

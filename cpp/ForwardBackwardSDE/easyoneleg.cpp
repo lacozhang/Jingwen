@@ -6,9 +6,10 @@
 /// zfunc: valuez
 void solve(int timestep, double xrange, double & yerror, double & zerror, double theta,
     std::function<void(double, double, double&)> func,
-    std::function<void(double, double, double&)> yfunc,
-    std::function<void(double, double, double&)> zfunc,
-    const double ytrue, const double ztrue) {
+    std::function<void(double, double, double&)> yval,
+    std::function<void(double, double, double&)> zval,
+    const double ytrue, const double ztrue,
+    bool y_approx, bool z_approx, bool global) {
     Eigen::MatrixXd y, z;
     Eigen::VectorXd t, x;
     Eigen::VectorXd w, a, yb_cache, zb_cache;
@@ -26,6 +27,7 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
     const int k = 10;
     std::cout << "gauss hermite : " << k << std::endl;
 
+    std::cout << "Compute GH" << std::endl;
     GaussHermite(k, w, a);
 #ifdef _DEBUG
     std::cout << "w : " << std::endl << w << std::endl;
@@ -78,7 +80,7 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
     z.setZero();
 
     for (int xidx = -xstep; xidx <= xstep; ++xidx) {
-        yfunc(t[timestep], x[xidx + IndexOffset], y.coeffRef(timestep, xidx + IndexOffset));
+        yval(t[timestep], x[xidx + IndexOffset], y.coeffRef(timestep, xidx + IndexOffset));
     }
 
     if (y.hasNaN()) {
@@ -87,7 +89,7 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
     }
 
     for (int xidx = -xstep; xidx <= xstep; ++xidx) {
-        zfunc(t[timestep], x[xidx + IndexOffset], z.coeffRef(timestep, xidx + IndexOffset));
+        zval(t[timestep], x[xidx + IndexOffset], z.coeffRef(timestep, xidx + IndexOffset));
     }
 
     if (z.hasNaN()) {
@@ -131,15 +133,21 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
                 std::cout << "y int val : " << yb << std::endl;
 #endif // _DEBUG
 
-                InterpolationIndex(x, z, x_point, xsteplength, IndexOffset, timestep, xstep, tindex, xinterpl, zinterpl);
+                if (z_approx) {
+                    InterpolationIndex(x, z, x_point, xsteplength, IndexOffset, timestep, xstep, tindex, xinterpl, zinterpl);
 #ifdef _DEBUG
-                std::cout << "x int : " << std::endl << xinterpl << std::endl;
-                std::cout << "z int : " << std::endl << zinterpl << std::endl;
+                    std::cout << "x int : " << std::endl << xinterpl << std::endl;
+                    std::cout << "z int : " << std::endl << zinterpl << std::endl;
 #endif // _DEBUG
-                NewtonInterpolation(xinterpl, zinterpl, x_point, zb);
+                    NewtonInterpolation(xinterpl, zinterpl, x_point, zb);
 #ifdef _DEBUG
-                std::cout << "z int val : " << zb << std::endl;
+                    std::cout << "z int val : " << zb << std::endl;
 #endif // _DEBUG
+                }
+                else {
+                    zval(t[tindex], x_point, zb);
+                }
+
                 yb_cache[i] = yb;
                 zb_cache[i] = zb;
             }
@@ -163,7 +171,13 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
             expectfw /= std::sqrt(pi);
             expectz /= std::sqrt(pi);
 
-            z(timeindex, xindex + IndexOffset) = (expectyw + (1.0e0 - theta)*timesteplength*expectfw - (1.0e0 - theta)*timesteplength*expectz) / (theta*timesteplength);
+            if (z_approx) {
+                z(timeindex, xindex + IndexOffset) = (expectyw + (1.0e0 - theta)*timesteplength*expectfw - (1.0e0 - theta)*timesteplength*expectz) / (theta*timesteplength);
+            }
+            else {
+                zval(t[timeindex], x[xindex + IndexOffset],
+                    z(timeindex, xindex + IndexOffset));
+            }
 
             y_i = y(tindex, xindex + IndexOffset);
 #ifdef _DEBUG
@@ -176,8 +190,9 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
                 cycidx++;
 
                 for (int i = 0; i < k; ++i) {
+                    f = 0.0e0;
                     func((1.0e0 - theta)*yb_cache(i) + theta*y_i, // y
-                        z(timeindex, xindex + IndexOffset), // z
+                        (1.0e0 - theta)*zb_cache(i) + theta*z(timeindex, xindex + IndexOffset), // z
                         f);
                     expectf += w[i] * f;
                 }
@@ -201,12 +216,9 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
                 y_i = y(timeindex, xindex + IndexOffset);
             } while (true);
 
-/*
-            if (timeindex > 0) {
-                yfunc(t[timeindex], x[xindex + IndexOffset], y(timeindex, xindex + IndexOffset));
+            if ((timeindex > 0) && (!global)) {
+                yval(t[timeindex], x[xindex + IndexOffset], y(timeindex, xindex + IndexOffset));
             }
-*/
-
         }
     }
 

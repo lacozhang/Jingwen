@@ -25,7 +25,7 @@ namespace Function34 {
         z = std::exp(x + t) / std::pow(std::exp(x + t) + 1.0e0, 2.0);
     }
 
-    const static double yture = 0.5e0, zture = 0.25e0;
+    const static double y_true = 0.5e0, z_true = 0.25e0;
 }
 
 namespace LinearFunction {
@@ -48,7 +48,7 @@ namespace LinearFunction {
 
 int main(int argc, const char* argv[]) {
     Eigen::VectorXi timesteps;
-    timesteps.resize(5);
+    timesteps.resize(4);
     timesteps[0] = 8;
     for (int i = 1; i < timesteps.size(); ++i) {
         timesteps[i] = timesteps[i - 1] * 2;
@@ -74,10 +74,18 @@ int main(int argc, const char* argv[]) {
 
     for (int i = 0; i < timesteps.size(); ++i) {
         std::cout << "Timesteps : " << timesteps[i] << std::endl;
-        // linear function example
+        // linear function 
+
+        /*
         solve(timesteps[i], range, yerror[i], zerror[i], theta,
             LinearFunction::function34, LinearFunction::finalvaluey, LinearFunction::valuez,
-            LinearFunction::y_true, LinearFunction::z_true);
+            LinearFunction::y_true, LinearFunction::z_true,
+            true, true, true);*/
+
+        solve(timesteps[i], range, yerror[i], zerror[i], theta,
+            Function34::function34, Function34::finalvaluey, Function34::valuez,
+            Function34::y_true, Function34::z_true,
+            true, true, true);
     }
 
     std::cout << "y errors : " << yerror << std::endl;
