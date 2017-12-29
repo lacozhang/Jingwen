@@ -1,3 +1,4 @@
+#include <iomanip>
 #include "easyoneleg.h"
 #include "../Common/common.h"
 
@@ -224,4 +225,6 @@ void solve(int timestep, double xrange, double & yerror, double & zerror, double
 
     zerror = std::fabs(ztrue - z(0, IndexOffset));
     yerror = std::fabs(ytrue - y(0, IndexOffset));
+    std::cout << "|y0 - y0'|" << std::scientific << std::setprecision(3) << yerror << std::endl;
+    std::cout << "|z0 - z0'|" << std::scientific << std::setprecision(3) << zerror << std::endl;
 }
